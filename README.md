@@ -18,6 +18,8 @@ Uma evidência aprovada deve estar vinculada a projeto, repositório, SHA, ambie
 
 `exit code 0`, HTTP 2xx, log de sucesso ou evidência residual não substituem o efeito observado.
 
+O gate de evidência também não substitui a governança de merge: consumidores devem proteger a branch padrão e exigir os checks E2E antes de integrar mudanças.
+
 ## Uso
 
 Consulte `docs/ADOPTION.md`. Consumidores devem fixar o workflow por SHA completo e fornecer o mesmo SHA no input `platform_ref`.
@@ -35,4 +37,4 @@ A segunda adoção foi revalidada pós-merge no SHA `58ea77cfc6c9847a0b7414ed0ed
 
 Fonte canônica: `ericson-j-santos/chatgpt-operational-rules`, especialmente `rules/e2e-validation.md`.
 
-Status: contrato 1.0.0 validado em múltiplos projetos; evolução incremental orientada por novas necessidades de consumidores.
+Status: contrato 1.0.0 validado em múltiplos projetos; enforcement administrativo de merge/rulesets permanece acompanhado na issue #3.

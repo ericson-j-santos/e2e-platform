@@ -12,7 +12,10 @@ O projeto consumidor executa sua jornada E2E real e publica um JSON de evidênci
 4. O input `platform_ref` deve receber o mesmo SHA usado em `uses`.
 5. Ausência de artifact, arquivo inválido, controle obrigatório falho ou referência mutável deve falhar o job.
 6. A evidência deve pertencer ao mesmo SHA, ambiente, execução e `correlation_id` usados para declarar o E2E concluído.
-7. Uma falha pós-merge invalida a conclusão até que um novo SHA integrado seja revalidado.
+7. A branch padrão do consumidor deve exigir merge via PR e tornar obrigatórios o job que produz a evidência E2E e o `E2E Platform Evidence Gate`.
+8. O Evidence Gate não substitui ruleset/branch protection: sem enforcement no repositório, um check verde/vermelho pode não impedir o merge.
+9. O merge só pode usar o HEAD que foi validado; se o SHA mudar, os checks e a evidência devem ser refeitos.
+10. Após o merge, o SHA integrado deve ser revalidado antes de declarar o incremento concluído.
 
 ## Exemplo
 
@@ -66,3 +69,24 @@ Evidência final pós-merge:
 - rastreabilidade: `e2e-platform#2`.
 
 Esse segundo consumidor comprovou que o contrato não depende de regras de negócio do ReqSys.
+
+## Governança de merge obrigatória
+
+O contrato de evidência e a política de merge são complementares:
+
+- o `e2e-platform` valida se a evidência é íntegra e fail-closed;
+- o repositório consumidor deve configurar a branch padrão para impedir merge enquanto os checks obrigatórios não estiverem verdes.
+
+Configuração mínima esperada no consumidor:
+
+1. exigir pull request para alteração da branch padrão;
+2. exigir o check que executa o E2E real e publica o artifact;
+3. exigir `E2E Platform Evidence Gate / validate-evidence`;
+4. bloquear force-push e exclusão da branch padrão;
+5. impedir uso de evidência produzida para SHA diferente do HEAD atual.
+
+Se ruleset/branch protection não puder ser comprovado, o estado da governança é **parcial**: a validação E2E pode estar correta, mas o enforcement de merge não está evidenciado.
+
+### Validação negativa
+
+Antes de considerar a governança concluída, um PR de teste com check obrigatório propositalmente falho deve permanecer não mergeável. Depois, com os mesmos checks verdes no HEAD esperado, um PR equivalente deve se tornar elegível a merge.
