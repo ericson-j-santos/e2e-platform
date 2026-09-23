@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "project": "e2e-platform-self-test",
+  "repository": "ericson-j-santos/e2e-platform",
+  "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "environment": "ci",
+  "correlation_id": "self-test-invalid-001",
+  "objective": "Provar que falso positivo falha fechado.",
+  "status": "passed",
+  "started_at": "2026-09-23T15:00:00Z",
+  "completed_at": "2026-09-23T15:00:01Z",
+  "positive_control": {
+    "passed": true,
+    "evidence": "efeito alegado"
+  },
+  "negative_control": {
+    "applicable": true,
+    "passed": false,
+    "evidence": "controle negativo falhou"
+  },
+  "independent_read": {
+    "passed": true,
+    "source": "independent-state-reader",
+    "evidence": "estado consultado"
+  },
+  "idempotency": {
+    "applicable": false,
+    "passed": null,
+    "evidence": ""
+  },
+  "test_of_test": {
+    "applicable": false,
+    "passed": null,
+    "evidence": ""
+  }
+}

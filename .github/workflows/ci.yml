@@ -1,0 +1,31 @@
+name: E2E Platform CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate positive fixture
+        run: python scripts/validate_evidence.py tests/fixtures/valid-evidence.json
+      - name: Prove fail-closed negative fixture
+        shell: bash
+        run: |
+          if python scripts/validate_evidence.py tests/fixtures/invalid-evidence.json; then
+            echo "negative fixture unexpectedly passed"
+            exit 1
+          fi
+      - name: Validate schema JSON syntax
+        run: python -m json.tool schemas/evidence.schema.json > /dev/null

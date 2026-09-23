@@ -1,0 +1,52 @@
+name: Reusable E2E Evidence Gate
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Artifact containing the evidence JSON
+        required: true
+        type: string
+      evidence_file:
+        description: Evidence JSON filename inside the artifact
+        required: false
+        default: evidence.json
+        type: string
+      platform_ref:
+        description: Full immutable SHA of e2e-platform; must match the workflow uses ref
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require immutable platform SHA
+        shell: bash
+        env:
+          PLATFORM_REF: ${{ inputs.platform_ref }}
+        run: |
+          if [[ ! "$PLATFORM_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "platform_ref must be a full 40-character SHA"
+            exit 2
+          fi
+      - name: Checkout E2E Platform
+        uses: actions/checkout@v4
+        with:
+          repository: ericson-j-santos/e2e-platform
+          ref: ${{ inputs.platform_ref }}
+          path: .e2e-platform
+          persist-credentials: false
+      - name: Download consumer evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: .e2e-evidence
+      - name: Validate evidence fail-closed
+        env:
+          EVIDENCE_FILE: ${{ inputs.evidence_file }}
+        run: python .e2e-platform/scripts/validate_evidence.py ".e2e-evidence/$EVIDENCE_FILE"

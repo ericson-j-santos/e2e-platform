@@ -2,14 +2,28 @@
 
 Plataforma reutilizável de validação ponta a ponta para múltiplos projetos.
 
-## Princípios
+## Escopo
 
-- evidência vinculada ao SHA e ambiente corretos;
-- `correlation_id` obrigatório;
-- controles positivo e negativo quando aplicáveis;
+Este repositório contém apenas infraestrutura E2E transversal: contrato de evidência, validação fail-closed, workflows reutilizáveis e componentes genéricos. Jornadas, fixtures, seletores e regras de negócio permanecem nos repositórios consumidores.
+
+## Contrato mínimo
+
+Uma evidência aprovada deve estar vinculada a projeto, repositório, SHA, ambiente e `correlation_id`, além de comprovar:
+
+- caso positivo;
+- controle negativo quando aplicável;
 - leitura independente do efeito;
 - idempotência quando aplicável;
-- comportamento fail-closed contra evidência ausente, ambígua ou residual;
-- cenários de negócio permanecem nos repositórios consumidores.
+- teste do próprio teste quando declarado aplicável.
 
-Fonte de governança: `ericson-j-santos/chatgpt-operational-rules`.
+`exit code 0`, HTTP 2xx, log de sucesso ou evidência residual não substituem o efeito observado.
+
+## Uso
+
+Consulte `docs/ADOPTION.md`. Consumidores devem fixar o workflow por SHA completo e fornecer o mesmo SHA no input `platform_ref`.
+
+## Governança
+
+Fonte canônica: `ericson-j-santos/chatgpt-operational-rules`, especialmente `rules/e2e-validation.md`.
+
+Status: bootstrap v1 em implementação.
