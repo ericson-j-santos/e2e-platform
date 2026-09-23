@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ericson-j-santos/e2e-platform/schemas/evidence.schema.json",
+  "title": "E2E Platform Evidence 1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "repository",
+    "sha",
+    "environment",
+    "correlation_id",
+    "objective",
+    "status",
+    "started_at",
+    "completed_at",
+    "positive_control",
+    "negative_control",
+    "independent_read",
+    "idempotency",
+    "test_of_test"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "project": {"type": "string", "minLength": 1},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "sha": {"type": "string", "pattern": "^[0-9a-fA-F]{40}$"},
+    "environment": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 8},
+    "objective": {"type": "string", "minLength": 1},
+    "status": {"enum": ["passed", "blocked", "failed"]},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "positive_control": {"$ref": "#/$defs/requiredCheck"},
+    "negative_control": {"$ref": "#/$defs/applicableCheck"},
+    "independent_read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "source", "evidence"],
+      "properties": {
+        "passed": {"const": true},
+        "source": {"type": "string", "minLength": 1},
+        "evidence": {"type": "string", "minLength": 1}
+      }
+    },
+    "idempotency": {"$ref": "#/$defs/applicableCheck"},
+    "test_of_test": {"$ref": "#/$defs/applicableCheck"}
+  },
+  "$defs": {
+    "requiredCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "evidence"],
+      "properties": {
+        "passed": {"const": true},
+        "evidence": {"type": "string", "minLength": 1}
+      }
+    },
+    "applicableCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applicable", "passed", "evidence"],
+      "properties": {
+        "applicable": {"type": "boolean"},
+        "passed": {"type": ["boolean", "null"]},
+        "evidence": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"applicable": {"const": true}}},
+          "then": {
+            "properties": {
+              "passed": {"const": true},
+              "evidence": {"minLength": 1}
+            }
+          }
+        }
+      ]
+    }
+  }
+}
