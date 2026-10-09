@@ -6,7 +6,10 @@ O teste consome, sem modificar, o gateway e o repositório PostgreSQL de
 
 ## Escopo e segurança
 
-O workflow inicia PostgreSQL 16 descartável somente no runner público do GitHub.
+O workflow usa os binários PostgreSQL 16 já instalados no runner público Ubuntu 24.04.
+Cria cluster descartável sob RUNNER_TEMP, sem Docker, sudo, instalação de pacotes
+ou alteração do serviço PostgreSQL do sistema. A identidade exige o repositório,
+run_id/attempt e runner GitHub hospedado; a limpeza para somente esse cluster.
 A credencial do serviço é fictícia e exclusiva desse banco efêmero. O validador
 recusa host remoto, banco/usuário diferentes, parâmetros extras na conexão e
 ausência da autorização explícita de ambiente descartável. Recusa também um
@@ -25,8 +28,8 @@ duplicidade no replay (inclusive concorrente) e listar o estado sem Notion.
 Outra conexão PostgreSQL, em transação somente leitura, confere os registros.
 O supervisor é reiniciado e a consulta é repetida. Essa fase ainda não é PASS.
 
-Depois o workflow reinicia exclusivamente o contêiner PostgreSQL identificado
-pelo próprio GitHub Actions. A fase `readback` confere a mudança de
+Depois o workflow reinicia exclusivamente esse cluster PostgreSQL, conferindo
+a identidade de propriedade do run antes de usar pg_ctl. A fase `readback` confere a mudança de
 `pg_postmaster_start_time()`, os mesmos registros e a consulta HTTP após novo
 início do gateway. Só então a evidência recebe `status=PASS`.
 

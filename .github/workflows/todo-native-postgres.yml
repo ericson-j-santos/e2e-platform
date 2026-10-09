@@ -14,22 +14,8 @@ concurrency:
 jobs:
   native-postgres:
     name: TODO PostgreSQL without Notion
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: todo_ci
-          POSTGRES_PASSWORD: ci_fixture_only
-          POSTGRES_DB: todo_native_ci
-        ports:
-          - "127.0.0.1:5432:5432"
-        options: >-
-          --health-cmd "pg_isready -U todo_ci -d todo_native_ci"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 12
     env:
       TODO_NATIVE_E2E_DISPOSABLE: "1"
       # Synthetic credential for this disposable CI service only; no repository secret.
@@ -56,12 +42,12 @@ jobs:
         run: python harness/tests/test_todo_native_probe.py
       - name: Install existing gateway requirements
         run: python -m pip install --disable-pip-version-check -r subject/services/todo_gateway/requirements.txt
+      - name: Start isolated native PostgreSQL without Docker
+        run: python harness/scripts/native_postgres_service.py start
       - name: Exercise real HTTP and PostgreSQL without Notion
         run: python harness/scripts/todo_native_postgres_probe.py --source subject --report evidence/todo-native.json --phase exercise
       - name: Restart only the disposable PostgreSQL service
-        env:
-          PG_CONTAINER: ${{ job.services.postgres.id }}
-        run: docker restart "$PG_CONTAINER"
+        run: python harness/scripts/native_postgres_service.py restart
       - name: Independently verify persistence after database restart
         run: python harness/scripts/todo_native_postgres_probe.py --source subject --report evidence/todo-native.json --phase readback
       - name: Preserve evidence tied to source and validator SHA
@@ -71,3 +57,6 @@ jobs:
           path: evidence/todo-native.json
           if-no-files-found: error
           retention-days: 7
+      - name: Stop only this disposable native PostgreSQL cluster
+        if: always()
+        run: python harness/scripts/native_postgres_service.py stop

@@ -49,5 +49,44 @@ class ProbeSafetyTests(unittest.TestCase):
         probe.require(True, "positive control")
 
 
+native_path = Path(__file__).resolve().parents[1] / "scripts/native_postgres_service.py"
+native_spec = importlib.util.spec_from_file_location("native_postgres_service", native_path)
+native = importlib.util.module_from_spec(native_spec)
+native_spec.loader.exec_module(native)
+
+
+class NativePostgresSafetyTests(unittest.TestCase):
+    def env(self):
+        return {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+                "RUNNER_OS": "Linux", "GITHUB_REPOSITORY": "ericson-j-santos/e2e-platform",
+                "TODO_NATIVE_E2E_DISPOSABLE": "1", "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1", "RUNNER_TEMP": "/home/runner/work/_temp"}
+
+    def test_fixed_isolated_cluster(self):
+        self.assertEqual(str(native.cluster_root(self.env())),
+                         "/home/runner/work/_temp/todo-native-123-1")
+
+    def test_requires_authorized_hosted_runner(self):
+        for field in ("GITHUB_ACTIONS", "RUNNER_ENVIRONMENT", "RUNNER_OS",
+                      "GITHUB_REPOSITORY", "TODO_NATIVE_E2E_DISPOSABLE"):
+            env = self.env()
+            env[field] = "invalid"
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                native.cluster_root(env)
+
+    def test_rejects_path_and_run_injection(self):
+        for field, value in (("RUNNER_TEMP", "/tmp"), ("GITHUB_RUN_ID", "../1"),
+                             ("GITHUB_RUN_ATTEMPT", "1;other"),
+                             ("GITHUB_RUN_ID", ""), ("GITHUB_RUN_ATTEMPT", "0")):
+            env = self.env()
+            env[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                native.cluster_root(env)
+
+    def test_unlisted_binary_never_executes(self):
+        with self.assertRaises(ValueError):
+            native.call("sh", ["-c", "false"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
