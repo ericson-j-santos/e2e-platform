@@ -4,16 +4,24 @@ on:
   workflow_call:
     inputs:
       artifact_name:
-        description: Artifact containing the evidence JSON
+        description: Artifact from this execution containing the evidence JSON
         required: true
         type: string
       evidence_file:
-        description: Evidence JSON filename inside the artifact
+        description: Relative JSON path confined to the downloaded artifact
         required: false
         default: evidence.json
         type: string
       platform_ref:
-        description: Full immutable SHA of e2e-platform; must match the workflow uses ref
+        description: Full immutable SHA; must equal the actual reusable workflow SHA
+        required: true
+        type: string
+      expected_environment:
+        description: Environment attested by the caller workflow
+        required: true
+        type: string
+      correlation_prefix:
+        description: Prefix used to form prefix-run_id-run_attempt
         required: true
         type: string
 
@@ -23,30 +31,40 @@ permissions:
 
 jobs:
   validate-evidence:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Require immutable platform SHA
-        shell: bash
-        env:
-          PLATFORM_REF: ${{ inputs.platform_ref }}
-        run: |
-          if [[ ! "$PLATFORM_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "platform_ref must be a full 40-character SHA"
-            exit 2
-          fi
-      - name: Checkout E2E Platform
-        uses: actions/checkout@v4
+      - name: Checkout actual immutable reusable workflow source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: ericson-j-santos/e2e-platform
-          ref: ${{ inputs.platform_ref }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           path: .e2e-platform
           persist-credentials: false
-      - name: Download consumer evidence
-        uses: actions/download-artifact@v4
+      - name: Configure Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Download current consumer evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: ${{ inputs.artifact_name }}
           path: .e2e-evidence
-      - name: Validate evidence fail-closed
+      - name: Validate against GitHub execution identity and attempt
         env:
-          EVIDENCE_FILE: ${{ inputs.evidence_file }}
-        run: python .e2e-platform/scripts/validate_evidence.py ".e2e-evidence/$EVIDENCE_FILE"
+          GITHUB_TOKEN: ${{ github.token }}
+          E2E_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          E2E_EXPECTED_ENVIRONMENT: ${{ inputs.expected_environment }}
+          E2E_CORRELATION_PREFIX: ${{ inputs.correlation_prefix }}
+          E2E_PLATFORM_REF: ${{ inputs.platform_ref }}
+          E2E_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          E2E_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          E2E_EVIDENCE_FILE: ${{ inputs.evidence_file }}
+        run: python .e2e-platform/scripts/validate_workflow_evidence.py > receipt.json
+      - name: Preserve approval receipt for independent readback
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: e2e-gate-receipt-${{ inputs.artifact_name }}-${{ github.run_attempt }}
+          path: receipt.json
+          if-no-files-found: error
+          retention-days: 7

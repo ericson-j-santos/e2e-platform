@@ -7,7 +7,7 @@ from typing import Any
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 TIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$"
 )
 STATUS_ALLOWED = {"passed", "blocked", "failed"}
 ROOT_FIELDS = {
@@ -30,6 +30,12 @@ def _exact_object(value: Any, fields: set[str], field: str) -> dict[str, Any]:
         raise EvidenceValidationError(f"{field}: missing fields: {', '.join(sorted(missing))}")
     if value.keys() - fields:
         raise EvidenceValidationError(f"{field}: unexpected fields")
+    for item in value.values():
+        if isinstance(item, str):
+            try:
+                item.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise EvidenceValidationError(f"{field}: invalid Unicode text") from exc
     return value
 
 

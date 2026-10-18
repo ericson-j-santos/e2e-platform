@@ -7,6 +7,11 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: e2e-platform-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   contract-self-test:
@@ -26,3 +31,71 @@ jobs:
         run: python scripts/validate_evidence.py tests/fixtures/valid-evidence.json
       - name: Validate schema JSON syntax
         run: python -m json.tool schemas/evidence.schema.json > /dev/null
+
+  workflow-cli-e2e:
+    needs: contract-self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout actual platform workflow version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Positive negative replay and real GitHub API controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          E2E_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          E2E_EXPECTED_ENVIRONMENT: ci
+          E2E_CORRELATION_PREFIX: e2e-platform-selftest
+          E2E_PLATFORM_REF: ${{ job.workflow_sha }}
+          E2E_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          E2E_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+        run: python scripts/workflow_evidence_e2e.py
+      - name: Preserve actual self-test evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: platform-evidence-${{ github.run_attempt }}
+          path: artifacts/workflow-gate/
+          if-no-files-found: error
+          retention-days: 7
+
+  reusable-gate:
+    needs: workflow-cli-e2e
+    uses: ./.github/workflows/e2e-evidence.yml
+    with:
+      artifact_name: platform-evidence-${{ github.run_attempt }}
+      platform_ref: ${{ github.workflow_sha }}
+      expected_environment: ci
+      correlation_prefix: e2e-platform-selftest
+
+  gate-artifact-readback:
+    needs: reusable-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Download source evidence independently
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: platform-evidence-${{ github.run_attempt }}
+          path: .readback/evidence
+      - name: Download approval receipt independently
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: e2e-gate-receipt-platform-evidence-${{ github.run_attempt }}-${{ github.run_attempt }}
+          path: .readback/receipt
+      - name: Verify artifact identity and digest in a fresh job
+        env:
+          E2E_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          E2E_WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: python scripts/readback_gate_receipt.py --evidence .readback/evidence/evidence.json --receipt .readback/receipt/receipt.json

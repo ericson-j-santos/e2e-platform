@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -25,21 +26,27 @@ def _unique_object(pairs):
 
 
 def _invalid_constant(_value):
-    raise EvidenceValidationError("JSON: non-finite number is not allowed")
+    raise EvidenceValidationError("JSON: numeric constants are outside the evidence contract")
 
 
-def load_evidence(path: Path):
+def read_evidence(path: Path):
     try:
         with path.open("rb") as stream:
             raw = stream.read(MAX_EVIDENCE_BYTES + 1)
         if len(raw) > MAX_EVIDENCE_BYTES:
             raise EvidenceValidationError("file: exceeds 1 MiB evidence limit")
-        return json.loads(
+        payload = json.loads(
             raw.decode("utf-8"), object_pairs_hook=_unique_object,
-            parse_constant=_invalid_constant,
+            parse_constant=_invalid_constant, parse_int=_invalid_constant,
+            parse_float=_invalid_constant,
         )
+        return payload, hashlib.sha256(raw).hexdigest()
     except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as exc:
         raise EvidenceValidationError("file: unreadable or invalid UTF-8 JSON") from exc
+
+
+def load_evidence(path: Path):
+    return read_evidence(path)[0]
 
 
 def main() -> int:

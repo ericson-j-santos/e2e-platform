@@ -34,6 +34,15 @@ class EvidenceIntegrityTests(unittest.TestCase):
                 with self.assertRaises(EvidenceValidationError):
                     validate_evidence(payload)
 
+    def test_invalid_timezone_offset_is_rejected(self):
+        for offset in ("+00:60", "-00:99", "+24:00", "-00:00"):
+            with self.subTest(offset=offset):
+                payload = copy.deepcopy(self.payload)
+                for field in ("started_at", "completed_at"):
+                    payload[field] = payload[field].replace("Z", offset)
+                with self.assertRaises(EvidenceValidationError):
+                    validate_evidence(payload)
+
     def test_future_evidence_is_rejected(self):
         payload = copy.deepcopy(self.payload)
         payload["started_at"] = "2999-01-01T00:00:00Z"

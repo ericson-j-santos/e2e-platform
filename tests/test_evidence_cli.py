@@ -1,4 +1,4 @@
-"""Exercise the installed CLI boundary using real subprocesses and file readback."""
+"""Exercise the real CLI boundary using real subprocesses and file readback."""
 from __future__ import annotations
 
 import json
@@ -72,6 +72,7 @@ class EvidenceCLITests(unittest.TestCase):
         values = (
             b"{", b"\xff", b'{"status":"failed","status":"passed"}',
             b'{"value":NaN}', b"null", b"[]", b"false",
+            b'{"unused":' + b"1" * 5000 + b"}", b'{"value":1e1000}',
         )
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "invalid.json"
@@ -92,7 +93,8 @@ class EvidenceCLITests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "invalid.json"
             for key, value in (
-                ("status", ["passed"]), ("started_at", "2026-09-23T15:00:00"),
+                ("status", ["passed"]), ("project", "\ud800"),
+                ("started_at", "2026-09-23T15:00:00"),
                 ("completed_at", "2999-01-01T00:00:00Z"),
             ):
                 with self.subTest(key=key):
