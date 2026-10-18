@@ -3,29 +3,128 @@ name: E2E Platform CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'fix/e2e-gate-integrity-*']
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: e2e-platform-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   contract-self-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
-      - name: Unit tests
+      - name: Unit and real CLI regression tests
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Validate positive fixture
         run: python scripts/validate_evidence.py tests/fixtures/valid-evidence.json
-      - name: Prove fail-closed negative fixture
-        shell: bash
-        run: |
-          if python scripts/validate_evidence.py tests/fixtures/invalid-evidence.json; then
-            echo "negative fixture unexpectedly passed"
-            exit 1
-          fi
       - name: Validate schema JSON syntax
         run: python -m json.tool schemas/evidence.schema.json > /dev/null
+
+  workflow-cli-e2e:
+    needs: contract-self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout actual platform workflow version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Real governance API negative control (not merge authorization)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          marker = "e2e-missing-check-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]
+          result = subprocess.run([
+              sys.executable, "scripts/verify_merge_governance.py",
+              "--repo", os.environ["GITHUB_REPOSITORY"],
+              "--branch", "main", "--expected-check", marker,
+          ], capture_output=True, text=True, timeout=180)
+          allowed = (
+              "GOVERNANCE_INVALID: default branch is not protected",
+              "GOVERNANCE_INVALID: missing required status checks: " + marker,
+          )
+          if result.returncode != 2 or result.stdout or result.stderr.strip() not in allowed:
+              raise SystemExit("Governance API negative control did not reject for the expected configuration reason")
+          print(json.dumps({
+              "result": "GOVERNANCE_API_NEGATIVE_CONTROL_VALID",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "branch": "main",
+              "observation": result.stderr.strip(),
+              "is_merge_authorization": False,
+          }, sort_keys=True))
+          PY
+      - name: Positive negative replay and real GitHub API controls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          E2E_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          E2E_EXPECTED_ENVIRONMENT: ci
+          E2E_CORRELATION_PREFIX: e2e-platform-selftest
+          E2E_PLATFORM_REF: ${{ job.workflow_sha }}
+          E2E_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          E2E_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+        run: python scripts/workflow_evidence_e2e.py
+      - name: Preserve actual self-test evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: platform-evidence-${{ github.run_attempt }}
+          path: artifacts/workflow-gate/
+          if-no-files-found: error
+          retention-days: 7
+
+  reusable-gate:
+    needs: workflow-cli-e2e
+    uses: ./.github/workflows/e2e-evidence.yml
+    with:
+      artifact_name: platform-evidence-${{ github.run_attempt }}
+      platform_ref: ${{ github.workflow_sha }}
+      expected_environment: ci
+      correlation_prefix: e2e-platform-selftest
+
+  gate-artifact-readback:
+    needs: reusable-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Download source evidence independently
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: platform-evidence-${{ github.run_attempt }}
+          path: .readback/evidence
+      - name: Download approval receipt independently
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: e2e-gate-receipt-platform-evidence-${{ github.run_attempt }}-${{ github.run_attempt }}
+          path: .readback/receipt
+      - name: Verify artifact identity and digest in a fresh job
+        env:
+          E2E_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          E2E_WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: python scripts/readback_gate_receipt.py --evidence .readback/evidence/evidence.json --receipt .readback/receipt/receipt.json

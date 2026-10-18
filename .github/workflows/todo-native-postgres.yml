@@ -2,6 +2,8 @@ name: TODO Native PostgreSQL Validation
 
 on:
   pull_request:
+  push:
+    branches: [main, 'fix/e2e-gate-integrity-*']
   workflow_dispatch:
 
 permissions:
