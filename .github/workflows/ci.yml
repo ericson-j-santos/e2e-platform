@@ -45,6 +45,35 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
+      - name: Real governance API negative control (not merge authorization)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          marker = "e2e-missing-check-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]
+          result = subprocess.run([
+              sys.executable, "scripts/verify_merge_governance.py",
+              "--repo", os.environ["GITHUB_REPOSITORY"],
+              "--branch", "main", "--expected-check", marker,
+          ], capture_output=True, text=True, timeout=180)
+          allowed = (
+              "GOVERNANCE_INVALID: default branch is not protected",
+              "GOVERNANCE_INVALID: missing required status checks: " + marker,
+          )
+          if result.returncode != 2 or result.stdout or result.stderr.strip() not in allowed:
+              raise SystemExit("Governance API negative control did not reject for the expected configuration reason")
+          print(json.dumps({
+              "result": "GOVERNANCE_API_NEGATIVE_CONTROL_VALID",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "branch": "main",
+              "observation": result.stderr.strip(),
+              "is_merge_authorization": False,
+          }, sort_keys=True))
+          PY
       - name: Positive negative replay and real GitHub API controls
         env:
           GITHUB_TOKEN: ${{ github.token }}
