@@ -35,6 +35,7 @@ class GovernanceVerifierTests(unittest.TestCase):
     def test_accepts_classic_protection_with_required_check(self):
         self.branch["protection"] = {
             "required_status_checks": {
+                "enforcement_level": "everyone",
                 "contexts": ["contract-self-test"],
                 "checks": [{"context": "workflow-cli-e2e"}],
             }
@@ -45,6 +46,40 @@ class GovernanceVerifierTests(unittest.TestCase):
         self.assertEqual(result["status"], "GOVERNANCE_VALID")
         self.assertEqual(result["validation_scope"], "required_status_checks_configuration")
         self.assertIs(result["is_merge_authorization"], False)
+
+    def test_ignores_unenforced_classic_checks(self):
+        for level in ("off", "non_admins", "unexpected", None):
+            with self.subTest(level=level):
+                protection = {
+                    "required_status_checks": {
+                        "contexts": ["stale-classic-check"],
+                        "checks": [],
+                    }
+                }
+                if level is not None:
+                    protection["required_status_checks"]["enforcement_level"] = level
+                branch = {**self.branch, "protection": protection}
+                with self.assertRaisesRegex(GovernanceError, "missing required status checks"):
+                    evaluate_governance(branch, [], ["stale-classic-check"])
+
+    def test_active_branch_rule_does_not_revive_disabled_classic_check(self):
+        branch = {
+            **self.branch,
+            "protection": {
+                "required_status_checks": {
+                    "enforcement_level": "off",
+                    "contexts": ["stale-classic-check"],
+                    "checks": [],
+                }
+            },
+        }
+        rules = [branch_rule("real-enforced-check")]
+        self.assertEqual(
+            evaluate_governance(branch, rules, ["real-enforced-check"])["status"],
+            "GOVERNANCE_VALID",
+        )
+        with self.assertRaisesRegex(GovernanceError, "stale-classic-check"):
+            evaluate_governance(branch, rules, ["stale-classic-check"])
 
     def test_accepts_branch_scoped_active_rules_without_mutation_and_replays(self):
         rules = [branch_rule("test", "Evidence Gate / validate-evidence")]

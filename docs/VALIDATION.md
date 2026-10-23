@@ -35,6 +35,8 @@ As regressões do verificador de governança cobrem proteção clássica, regras
 aplicáveis à branch, formato inválido da API, paginação, branch com barra, identidade
 divergente, lista vazia de checks e snapshots que não demonstram aplicação à branch.
 
+Para proteção clássica, somente checks com `enforcement_level=everyone` entram no conjunto comprovado. `off`, `non_admins` (dispensa administradores), níveis desconhecidos e metadados sem nível são ignorados; uma regra de branch ativa e aplicável pode comprovar os checks separadamente. Assim, uma branch protegida por outro motivo não produz falso positivo com checks não exigidos.
+
 O controle de API real solicita um nome de check sintético ausente e exige rejeição
 pela configuração observada. Falha de rede, autorização, formato ou crash não
 satisfaz esse controle. Seu resultado identifica

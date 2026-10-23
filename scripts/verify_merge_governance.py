@@ -47,6 +47,10 @@ def _contexts_from_branch(branch: dict[str, Any]) -> set[str]:
         return set()
     if not isinstance(required, dict):
         raise GovernanceError("required status checks: expected object")
+    # Branch protection can be active for another reason while checks are off;
+    # non_admins permits an administrator bypass. Only everyone proves enforcement.
+    if required.get("enforcement_level") != "everyone":
+        return set()
     return _check_names(required.get("contexts", []), "contexts", objects=False) | _check_names(
         required.get("checks", []), "checks", objects=True
     )
