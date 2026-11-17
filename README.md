@@ -12,6 +12,7 @@ Infraestrutura reutilizável de evidência e validação ponta a ponta para múl
 | Recibo de validação | Identidade da execução, SHA da plataforma e SHA-256 dos bytes aprovados |
 | Verificador de governança | Leitura da configuração de checks obrigatórios aplicável à branch |
 | CI e E2E | Regressões, CLI real, API real, artefatos e leitura em job independente |
+| Contrato físico multi-host | Recibo Ed25519 com dois hosts distintos, mesma tarefa, CAS, retomada, replay negativo, custo zero e vínculo à tentativa atual |
 
 Jornadas, fixtures, seletores e regras de negócio permanecem nos repositórios consumidores.
 
@@ -35,6 +36,32 @@ O gate confere o arquivo e sua origem de execução. A comprovação do efeito d
 continua sob responsabilidade do produtor E2E e de sua leitura independente. Um texto
 afirmando sucesso não estabelece sozinho que o efeito aconteceu. A proteção dos
 workflows e da branch faz parte dessa cadeia de confiança.
+
+## Continuidade física entre hosts
+
+O contrato separado `schemas/physical-handoff.schema.json` e o validador
+`e2e_platform.physical_handoff.validate_physical_handoff` cobrem evidência física
+multi-host. A autoridade externa assina o payload com Ed25519; o consumidor recebe
+somente a chave pública e fornece PR, HEAD, ambiente, run, job e tentativa esperados
+por contexto confiável. O recibo exige exatamente dois hosts físicos distintos,
+Session Launcher e Command Gateway autenticados, runners, leases e worktrees
+exclusivos, mesma tarefa, checkpoint CAS imutável relido, interrupção, retomada com
+fencing, leitura externa, replay negativo e custo zero comprovado.
+
+Um resultado válido continua declarando `dispatch_allowed=false`,
+`merge_authorized=false` e `deployment_authorized=false`. O contrato valida a prova;
+não executa computadores e não substitui autorização operacional ou de merge.
+
+Validação por CLI, sempre com contexto vindo do controlador confiável:
+
+```bash
+python scripts/validate_physical_handoff.py /caminho/absoluto/evidence.json \
+  --public-key-hex "$PUBLIC_KEY_HEX" \
+  --expected-repository owner/repo --expected-pr-number 123 \
+  --expected-head-sha "$HEAD_SHA" --expected-environment dev \
+  --expected-run-id "$RUN_ID" --expected-job-id "$JOB_ID" \
+  --expected-run-attempt "$RUN_ATTEMPT"
+```
 
 ## Adoção
 
