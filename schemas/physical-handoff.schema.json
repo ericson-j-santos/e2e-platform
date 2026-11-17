@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ericson-j-santos/e2e-platform/schemas/physical-handoff.schema.json",
+  "title": "E2E Platform Physical Handoff Evidence 1.0.0",
+  "description": "Signed execution-bound evidence for one task resumed across two distinct physical hosts. Validation never authorizes dispatch, merge, or deployment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["payload", "signature"],
+  "properties": {
+    "signature": {"type": "string", "pattern": "^[0-9a-f]{128}$"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "authority", "issued_at", "expires_at", "repository", "pr_number", "head_sha", "environment", "workflow_run_id", "job_id", "run_attempt", "task_id", "status", "artifact_synthetic", "cost", "hosts", "checkpoint", "interruption", "resumption", "external_readback", "replay_negative"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "authority": {"const": "e2e-platform-physical-handoff-authority-v1"},
+        "issued_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+        "pr_number": {"type": "integer", "minimum": 1},
+        "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "environment": {"type": "string", "minLength": 1},
+        "workflow_run_id": {"type": "integer", "minimum": 1},
+        "job_id": {"type": "integer", "minimum": 1},
+        "run_attempt": {"type": "integer", "minimum": 1},
+        "task_id": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{8,128}$"},
+        "status": {"const": "passed"},
+        "artifact_synthetic": {"const": false},
+        "cost": {"$ref": "#/$defs/cost"},
+        "hosts": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/host"}},
+        "checkpoint": {"$ref": "#/$defs/checkpoint"},
+        "interruption": {"$ref": "#/$defs/interruption"},
+        "resumption": {"$ref": "#/$defs/resumption"},
+        "external_readback": {"$ref": "#/$defs/proof"},
+        "replay_negative": {"$ref": "#/$defs/proof"}
+      }
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proof": {"type": "object", "additionalProperties": false, "required": ["passed", "evidence_sha256"], "properties": {"passed": {"const": true}, "evidence_sha256": {"$ref": "#/$defs/digest"}}},
+    "cost": {"type": "object", "additionalProperties": false, "required": ["status", "evidence_sha256"], "properties": {"status": {"const": "COST_ZERO_CONFIRMED"}, "evidence_sha256": {"$ref": "#/$defs/digest"}}},
+    "host": {"type": "object", "additionalProperties": false, "required": ["role", "physical_host_id", "runner_instance_id", "session_launcher_authenticated", "command_gateway_authenticated", "runner_online", "runner_busy", "lease_id", "lease_exclusive", "worktree_id", "worktree_exclusive", "receipt_sha256"], "properties": {"role": {"enum": ["builder", "validator"]}, "physical_host_id": {"type": "string", "pattern": "^host-[a-z0-9-]{8,80}$"}, "runner_instance_id": {"type": "string", "minLength": 8}, "session_launcher_authenticated": {"const": true}, "command_gateway_authenticated": {"const": true}, "runner_online": {"const": true}, "runner_busy": {"const": false}, "lease_id": {"type": "string", "minLength": 12}, "lease_exclusive": {"const": true}, "worktree_id": {"type": "string", "minLength": 12}, "worktree_exclusive": {"const": true}, "receipt_sha256": {"$ref": "#/$defs/digest"}}},
+    "checkpoint": {"type": "object", "additionalProperties": false, "required": ["task_id", "checkpoint_id", "cas_sha256", "readback_sha256", "immutable"], "properties": {"task_id": {"type": "string"}, "checkpoint_id": {"type": "string", "minLength": 8}, "cas_sha256": {"$ref": "#/$defs/digest"}, "readback_sha256": {"$ref": "#/$defs/digest"}, "immutable": {"const": true}}},
+    "interruption": {"type": "object", "additionalProperties": false, "required": ["host_role", "controlled", "lease_released", "observed_sha256"], "properties": {"host_role": {"const": "builder"}, "controlled": {"const": true}, "lease_released": {"const": true}, "observed_sha256": {"$ref": "#/$defs/digest"}}},
+    "resumption": {"type": "object", "additionalProperties": false, "required": ["host_role", "task_id", "checkpoint_id", "fencing_exclusive", "completed"], "properties": {"host_role": {"const": "validator"}, "task_id": {"type": "string"}, "checkpoint_id": {"type": "string"}, "fencing_exclusive": {"const": true}, "completed": {"const": true}}}
+  }
+}
