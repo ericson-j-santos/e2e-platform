@@ -52,6 +52,17 @@ Um resultado válido continua declarando `dispatch_allowed=false`,
 `merge_authorized=false` e `deployment_authorized=false`. O contrato valida a prova;
 não executa computadores e não substitui autorização operacional ou de merge.
 
+Validação por CLI, sempre com contexto vindo do controlador confiável:
+
+```bash
+python scripts/validate_physical_handoff.py /caminho/absoluto/evidence.json \
+  --public-key-hex "$PUBLIC_KEY_HEX" \
+  --expected-repository owner/repo --expected-pr-number 123 \
+  --expected-head-sha "$HEAD_SHA" --expected-environment dev \
+  --expected-run-id "$RUN_ID" --expected-job-id "$JOB_ID" \
+  --expected-run-attempt "$RUN_ATTEMPT"
+```
+
 ## Adoção
 
 Consulte [docs/ADOPTION.md](docs/ADOPTION.md). O consumidor precisa:
